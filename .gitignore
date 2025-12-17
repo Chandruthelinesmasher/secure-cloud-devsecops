@@ -1,0 +1,32 @@
+cat > .gitignore << 'EOF'
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!terraform/environments/dev/terraform.tfvars.example
+
+# Azure
+*.publishsettings
+*.azurePubxml
+
+# Secrets
+*.pem
+*.key
+.env
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log
+EOF
