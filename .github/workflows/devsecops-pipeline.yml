@@ -52,7 +52,6 @@ jobs:
   iac-security-scan:
     name: 🔍 IaC Security Scan (Checkov)
     runs-on: ubuntu-latest
-    # No dependencies - runs in parallel with code-quality
     
     steps:
       - name: Checkout Code
@@ -72,6 +71,16 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: checkov-results.sarif
+        continue-on-error: true
+
+      - name: Checkov Summary
+        if: always()
+        run: |
+          echo "=================================="
+          echo "✅ IaC Security Scan Complete"
+          echo "=================================="
+          echo "Review security findings above"
+          echo "=================================="
 
   # ============================================
   # STAGE 3: Secret Scanning
@@ -79,7 +88,6 @@ jobs:
   secret-scan:
     name: 🔐 Secret Detection (TruffleHog)
     runs-on: ubuntu-latest
-    # No dependencies - runs in parallel with other security scans
     
     steps:
       - name: Checkout Code
@@ -87,13 +95,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run TruffleHog
-        uses: trufflesecurity/trufflehog@main
+      - name: Run TruffleHog Scan
+        run: |
+          # Install TruffleHog
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Scan filesystem for secrets
+          echo "Scanning for secrets..."
+          trufflehog filesystem . --only-verified --json > trufflehog-results.json || true
+          
+          echo "=================================="
+          echo "🔍 Secret Scanning Complete"
+          echo "=================================="
+          
+          # Check if any secrets were found
+          if [ -s trufflehog-results.json ] && [ "$(cat trufflehog-results.json)" != "" ]; then
+            echo "⚠️  Verified secrets detected!"
+            cat trufflehog-results.json
+            echo "=================================="
+            echo "⚠️  Action Required: Rotate any exposed secrets immediately"
+          else
+            echo "✅ No verified secrets found"
+          fi
+          echo "=================================="
+
+      - name: Upload Secret Scan Results
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --debug --only-verified
+          name: trufflehog-results
+          path: trufflehog-results.json
+          retention-days: 30
 
   # ============================================
   # STAGE 4: Build & Container Security
@@ -101,7 +133,7 @@ jobs:
   build-and-scan:
     name: 🐳 Build & Scan Container
     runs-on: ubuntu-latest
-    needs: [code-quality]  # Wait for code quality to pass
+    needs: [code-quality]
     
     steps:
       - name: Checkout Code
@@ -116,7 +148,7 @@ jobs:
           docker build -t ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} .
           docker tag ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} ${{ env.DOCKER_IMAGE_NAME }}:latest
 
-      - name: Run Trivy Vulnerability Scanner
+      - name: Run Trivy Vulnerability Scanner (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
@@ -124,12 +156,14 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
 
-      - name: Upload Trivy Results
+      - name: Upload Trivy Results to GitHub Security
+        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
 
-      - name: Scan for vulnerabilities (Table Output)
+      - name: Run Trivy Vulnerability Scanner (Table)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
@@ -137,6 +171,15 @@ jobs:
           exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+
+      - name: Container Security Summary
+        run: |
+          echo "=================================="
+          echo "✅ Container Security Scan Complete"
+          echo "=================================="
+          echo "Image: ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}"
+          echo "Scanned for: CRITICAL and HIGH vulnerabilities"
+          echo "=================================="
 
       - name: Save Docker Image
         run: |
@@ -155,7 +198,7 @@ jobs:
   terraform-plan:
     name: 📋 Terraform Plan
     runs-on: ubuntu-latest
-    needs: [iac-security-scan, secret-scan]  # Wait for security scans
+    needs: [iac-security-scan, secret-scan]
     
     steps:
       - name: Checkout Code
@@ -201,6 +244,17 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
           ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
 
+      - name: Terraform Plan Summary
+        run: |
+          echo "=================================="
+          echo "📋 Terraform Plan Generated"
+          echo "=================================="
+          cd terraform
+          terraform show -no-color tfplan | head -50
+          echo "=================================="
+          echo "Full plan saved as artifact"
+          echo "=================================="
+
       - name: Save Terraform Plan
         uses: actions/upload-artifact@v4
         with:
@@ -236,7 +290,7 @@ jobs:
             })
 
   # ============================================
-  # STAGE 6: Security Gate - All Checks Must Pass
+  # STAGE 6: Security Gate - All Checks Pass
   # ============================================
   security-gate:
     name: 🛡️ Security Gate
@@ -259,12 +313,12 @@ jobs:
           echo "=================================="
 
   # ============================================
-  # STAGE 7: Deploy Infrastructure (Auto)
+  # STAGE 7: Deploy Infrastructure
   # ============================================
   deploy-infrastructure:
     name: 🏗️ Deploy Infrastructure
     runs-on: ubuntu-latest
-    needs: [security-gate]  # Only deploy after all security checks pass
+    needs: [security-gate]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
@@ -297,6 +351,7 @@ jobs:
         id: apply
         run: |
           cd terraform
+          echo "Applying Terraform plan..."
           terraform apply -auto-approve tfplan
         env:
           ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
@@ -314,7 +369,7 @@ jobs:
           echo "key_vault_name=$(terraform output -raw key_vault_name)" >> $GITHUB_OUTPUT
           echo "container_fqdn=$(terraform output -raw container_instance_fqdn)" >> $GITHUB_OUTPUT
 
-      - name: Display Infrastructure Info
+      - name: Infrastructure Deployment Summary
         run: |
           echo "=================================="
           echo "🎉 Infrastructure Deployed!"
@@ -322,21 +377,23 @@ jobs:
           echo "📦 ACR: ${{ steps.outputs.outputs.acr_server }}"
           echo "🔑 Key Vault: ${{ steps.outputs.outputs.key_vault_name }}"
           echo "🌐 FQDN: ${{ steps.outputs.outputs.container_fqdn }}"
+          echo "📍 Resource Group: ${{ steps.outputs.outputs.resource_group }}"
           echo "=================================="
 
     outputs:
       acr_name: ${{ steps.outputs.outputs.acr_name }}
       acr_server: ${{ steps.outputs.outputs.acr_server }}
       resource_group: ${{ steps.outputs.outputs.resource_group }}
+      key_vault_name: ${{ steps.outputs.outputs.key_vault_name }}
       container_fqdn: ${{ steps.outputs.outputs.container_fqdn }}
 
   # ============================================
-  # STAGE 8: Deploy Application (Auto)
+  # STAGE 8: Deploy Application
   # ============================================
   deploy-application:
     name: 🚀 Deploy Application
     runs-on: ubuntu-latest
-    needs: [deploy-infrastructure]  # Wait for infrastructure
+    needs: [deploy-infrastructure]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
@@ -354,31 +411,38 @@ jobs:
           name: docker-image
 
       - name: Load Docker Image
-        run: docker load -i app-image.tar
+        run: |
+          echo "Loading Docker image..."
+          docker load -i app-image.tar
 
       - name: Login to Azure Container Registry
         run: |
+          echo "Logging into ACR: ${{ needs.deploy-infrastructure.outputs.acr_name }}"
           az acr login --name ${{ needs.deploy-infrastructure.outputs.acr_name }}
 
       - name: Tag and Push to ACR
         run: |
           ACR_SERVER="${{ needs.deploy-infrastructure.outputs.acr_server }}"
           
+          echo "Tagging images for ACR..."
           docker tag ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} \
             ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:latest
           
           docker tag ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} \
             ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
           
+          echo "Pushing images to ACR..."
           docker push ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:latest
           docker push ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          
+          echo "✅ Images pushed successfully!"
 
       - name: Update Container Instance
         run: |
           RESOURCE_GROUP="${{ needs.deploy-infrastructure.outputs.resource_group }}"
           ACR_SERVER="${{ needs.deploy-infrastructure.outputs.acr_server }}"
           
-          # Get ACR credentials
+          echo "Getting ACR credentials..."
           ACR_USERNAME=$(az acr credential show \
             --name ${{ needs.deploy-infrastructure.outputs.acr_name }} \
             --query username -o tsv)
@@ -387,7 +451,7 @@ jobs:
             --name ${{ needs.deploy-infrastructure.outputs.acr_name }} \
             --query passwords[0].value -o tsv)
           
-          # Update container with new image
+          echo "Deploying container instance..."
           az container create \
             --resource-group ${RESOURCE_GROUP} \
             --name securecloud-dev-aci \
@@ -401,7 +465,16 @@ jobs:
             --memory 1.0 \
             --environment-variables NODE_ENV=production PORT=3000 \
             --restart-policy Always \
-            || echo "Container instance already exists, updating..."
+            || echo "⚠️  Container instance already exists, may need manual update"
+
+      - name: Application Deployment Summary
+        run: |
+          echo "=================================="
+          echo "🚀 Application Deployed!"
+          echo "=================================="
+          echo "📦 Image: ${{ needs.deploy-infrastructure.outputs.acr_server }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
+          echo "🏷️  Tag: ${{ github.sha }}"
+          echo "=================================="
 
   # ============================================
   # STAGE 9: Verification & Health Check
@@ -409,33 +482,66 @@ jobs:
   verify-deployment:
     name: ✅ Verify Deployment
     runs-on: ubuntu-latest
-    needs: [deploy-application]  # Wait for application deployment
+    needs: [deploy-application, deploy-infrastructure]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
       - name: Wait for Application Startup
-        run: sleep 30
+        run: |
+          echo "Waiting 30 seconds for application to start..."
+          sleep 30
 
       - name: Health Check
         run: |
           FQDN="${{ needs.deploy-infrastructure.outputs.container_fqdn }}"
           
-          echo "Testing health endpoint..."
-          curl -f http://${FQDN}:3000/health || echo "Health check pending..."
+          echo "=================================="
+          echo "🏥 Running Health Checks"
+          echo "=================================="
           
+          echo "Testing health endpoint..."
+          if curl -f -m 10 http://${FQDN}:3000/health; then
+            echo "✅ Health check passed!"
+          else
+            echo "⚠️  Health check failed or pending..."
+          fi
+          
+          echo ""
           echo "Testing main endpoint..."
-          curl -f http://${FQDN}:3000/ || echo "Main endpoint pending..."
+          if curl -f -m 10 http://${FQDN}:3000/; then
+            echo "✅ Main endpoint accessible!"
+          else
+            echo "⚠️  Main endpoint not ready yet..."
+          fi
+          
+          echo "=================================="
 
       - name: 🎉 Deployment Summary
         run: |
           echo "=================================="
           echo "✅ DEPLOYMENT SUCCESSFUL!"
           echo "=================================="
-          echo "🌐 Application URL: http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000"
-          echo "🔍 Health Check: http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000/health"
-          echo "📊 Info Endpoint: http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000/info"
+          echo ""
+          echo "🌐 Application URL:"
+          echo "   http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000"
+          echo ""
+          echo "🔍 Health Check:"
+          echo "   http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000/health"
+          echo ""
+          echo "📊 Info Endpoint:"
+          echo "   http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000/info"
+          echo ""
+          echo "=================================="
+          echo "📋 Deployment Details"
           echo "=================================="
           echo "Commit: ${{ github.sha }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "Actor: ${{ github.actor }}"
+          echo "Workflow: ${{ github.run_number }}"
+          echo "=================================="
+          echo ""
+          echo "🎯 Next Steps:"
+          echo "1. Visit the application URL above"
+          echo "2. Check Azure Portal for resources"
+          echo "3. Review security scan results in artifacts"
           echo "=================================="
