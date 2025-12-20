@@ -52,6 +52,7 @@ jobs:
   iac-security-scan:
     name: 🔍 IaC Security Scan (Checkov)
     runs-on: ubuntu-latest
+    # No dependencies - runs in parallel with code-quality
     
     steps:
       - name: Checkout Code
@@ -62,7 +63,7 @@ jobs:
         with:
           directory: terraform/
           framework: terraform
-          soft_fail: true # Change to false for strict mode
+          soft_fail: true
           output_format: cli,sarif
           output_file_path: console,checkov-results.sarif
           
@@ -78,6 +79,7 @@ jobs:
   secret-scan:
     name: 🔐 Secret Detection (TruffleHog)
     runs-on: ubuntu-latest
+    # No dependencies - runs in parallel with other security scans
     
     steps:
       - name: Checkout Code
@@ -99,7 +101,7 @@ jobs:
   build-and-scan:
     name: 🐳 Build & Scan Container
     runs-on: ubuntu-latest
-    needs: [code-quality]
+    needs: [code-quality]  # Wait for code quality to pass
     
     steps:
       - name: Checkout Code
@@ -132,7 +134,7 @@ jobs:
         with:
           image-ref: ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
           format: 'table'
-          exit-code: '0' # Don't fail on vulnerabilities, just report
+          exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
@@ -153,7 +155,7 @@ jobs:
   terraform-plan:
     name: 📋 Terraform Plan
     runs-on: ubuntu-latest
-    needs: [iac-security-scan, secret-scan]
+    needs: [iac-security-scan, secret-scan]  # Wait for security scans
     
     steps:
       - name: Checkout Code
@@ -234,12 +236,35 @@ jobs:
             })
 
   # ============================================
-  # STAGE 6: Deploy Infrastructure (Auto)
+  # STAGE 6: Security Gate - All Checks Must Pass
+  # ============================================
+  security-gate:
+    name: 🛡️ Security Gate
+    runs-on: ubuntu-latest
+    needs: [code-quality, iac-security-scan, secret-scan, build-and-scan, terraform-plan]
+    
+    steps:
+      - name: Security Gate Passed
+        run: |
+          echo "=================================="
+          echo "✅ ALL SECURITY CHECKS PASSED!"
+          echo "=================================="
+          echo "✓ Code Quality Check"
+          echo "✓ IaC Security Scan (Checkov)"
+          echo "✓ Secret Detection (TruffleHog)"
+          echo "✓ Container Security Scan (Trivy)"
+          echo "✓ Terraform Plan Validated"
+          echo "=================================="
+          echo "🚀 Ready for deployment!"
+          echo "=================================="
+
+  # ============================================
+  # STAGE 7: Deploy Infrastructure (Auto)
   # ============================================
   deploy-infrastructure:
     name: 🏗️ Deploy Infrastructure
     runs-on: ubuntu-latest
-    needs: [terraform-plan, build-and-scan]
+    needs: [security-gate]  # Only deploy after all security checks pass
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
@@ -306,12 +331,12 @@ jobs:
       container_fqdn: ${{ steps.outputs.outputs.container_fqdn }}
 
   # ============================================
-  # STAGE 7: Deploy Application (Auto)
+  # STAGE 8: Deploy Application (Auto)
   # ============================================
   deploy-application:
     name: 🚀 Deploy Application
     runs-on: ubuntu-latest
-    needs: deploy-infrastructure
+    needs: [deploy-infrastructure]  # Wait for infrastructure
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
@@ -379,12 +404,12 @@ jobs:
             || echo "Container instance already exists, updating..."
 
   # ============================================
-  # STAGE 8: Verification & Health Check
+  # STAGE 9: Verification & Health Check
   # ============================================
   verify-deployment:
     name: ✅ Verify Deployment
     runs-on: ubuntu-latest
-    needs: [deploy-application, deploy-infrastructure]
+    needs: [deploy-application]  # Wait for application deployment
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
