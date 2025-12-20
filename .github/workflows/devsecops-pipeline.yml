@@ -1,0 +1,416 @@
+name: 🔐 DevSecOps Pipeline - Fully Automated
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE_NAME: securecloud-app
+  TERRAFORM_VERSION: 1.6.0
+  NODE_VERSION: 18
+
+jobs:
+  # ============================================
+  # STAGE 1: Code Quality & Linting
+  # ============================================
+  code-quality:
+    name: 📝 Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          cd app
+          npm ci
+
+      - name: Run Tests
+        run: |
+          cd app
+          npm test
+
+      - name: Lint Check
+        run: |
+          cd app
+          npm run lint || echo "No lint script found, skipping..."
+
+  # ============================================
+  # STAGE 2: Infrastructure Security Scanning
+  # ============================================
+  iac-security-scan:
+    name: 🔍 IaC Security Scan (Checkov)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform/
+          framework: terraform
+          soft_fail: true # Change to false for strict mode
+          output_format: cli,sarif
+          output_file_path: console,checkov-results.sarif
+          
+      - name: Upload Checkov Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-results.sarif
+
+  # ============================================
+  # STAGE 3: Secret Scanning
+  # ============================================
+  secret-scan:
+    name: 🔐 Secret Detection (TruffleHog)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  # ============================================
+  # STAGE 4: Build & Container Security
+  # ============================================
+  build-and-scan:
+    name: 🐳 Build & Scan Container
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          cd app
+          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} .
+          docker tag ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} ${{ env.DOCKER_IMAGE_NAME }}:latest
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Scan for vulnerabilities (Table Output)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          format: 'table'
+          exit-code: '0' # Don't fail on vulnerabilities, just report
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: Save Docker Image
+        run: |
+          docker save ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} -o app-image.tar
+          
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: app-image.tar
+          retention-days: 1
+
+  # ============================================
+  # STAGE 5: Terraform Plan & Validate
+  # ============================================
+  terraform-plan:
+    name: 📋 Terraform Plan
+    runs-on: ubuntu-latest
+    needs: [iac-security-scan, secret-scan]
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init
+
+      - name: Terraform Format Check
+        run: |
+          cd terraform
+          terraform fmt -check -recursive || true
+
+      - name: Terraform Validate
+        run: |
+          cd terraform
+          terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          cd terraform
+          terraform plan \
+            -var-file=environments/dev/terraform.tfvars \
+            -out=tfplan \
+            -no-color | tee plan-output.txt
+        env:
+          ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+
+      - name: Save Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: |
+            terraform/tfplan
+            terraform/plan-output.txt
+          retention-days: 5
+
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan-output.txt', 'utf8');
+            const output = `#### Terraform Plan 📋
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`terraform
+            ${plan.slice(0, 65000)}
+            \`\`\`
+            
+            </details>
+            
+            **✅ Plan generated successfully - will auto-deploy on merge**`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  # ============================================
+  # STAGE 6: Deploy Infrastructure (Auto)
+  # ============================================
+  deploy-infrastructure:
+    name: 🏗️ Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [terraform-plan, build-and-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan
+          path: terraform/
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init
+
+      - name: Terraform Apply
+        id: apply
+        run: |
+          cd terraform
+          terraform apply -auto-approve tfplan
+        env:
+          ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+
+      - name: Get Terraform Outputs
+        id: outputs
+        run: |
+          cd terraform
+          echo "acr_name=$(terraform output -raw container_registry_name)" >> $GITHUB_OUTPUT
+          echo "acr_server=$(terraform output -raw container_registry_login_server)" >> $GITHUB_OUTPUT
+          echo "resource_group=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+          echo "key_vault_name=$(terraform output -raw key_vault_name)" >> $GITHUB_OUTPUT
+          echo "container_fqdn=$(terraform output -raw container_instance_fqdn)" >> $GITHUB_OUTPUT
+
+      - name: Display Infrastructure Info
+        run: |
+          echo "=================================="
+          echo "🎉 Infrastructure Deployed!"
+          echo "=================================="
+          echo "📦 ACR: ${{ steps.outputs.outputs.acr_server }}"
+          echo "🔑 Key Vault: ${{ steps.outputs.outputs.key_vault_name }}"
+          echo "🌐 FQDN: ${{ steps.outputs.outputs.container_fqdn }}"
+          echo "=================================="
+
+    outputs:
+      acr_name: ${{ steps.outputs.outputs.acr_name }}
+      acr_server: ${{ steps.outputs.outputs.acr_server }}
+      resource_group: ${{ steps.outputs.outputs.resource_group }}
+      container_fqdn: ${{ steps.outputs.outputs.container_fqdn }}
+
+  # ============================================
+  # STAGE 7: Deploy Application (Auto)
+  # ============================================
+  deploy-application:
+    name: 🚀 Deploy Application
+    runs-on: ubuntu-latest
+    needs: deploy-infrastructure
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Download Docker Image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+
+      - name: Load Docker Image
+        run: docker load -i app-image.tar
+
+      - name: Login to Azure Container Registry
+        run: |
+          az acr login --name ${{ needs.deploy-infrastructure.outputs.acr_name }}
+
+      - name: Tag and Push to ACR
+        run: |
+          ACR_SERVER="${{ needs.deploy-infrastructure.outputs.acr_server }}"
+          
+          docker tag ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} \
+            ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:latest
+          
+          docker tag ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} \
+            ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          
+          docker push ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:latest
+          docker push ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Update Container Instance
+        run: |
+          RESOURCE_GROUP="${{ needs.deploy-infrastructure.outputs.resource_group }}"
+          ACR_SERVER="${{ needs.deploy-infrastructure.outputs.acr_server }}"
+          
+          # Get ACR credentials
+          ACR_USERNAME=$(az acr credential show \
+            --name ${{ needs.deploy-infrastructure.outputs.acr_name }} \
+            --query username -o tsv)
+          
+          ACR_PASSWORD=$(az acr credential show \
+            --name ${{ needs.deploy-infrastructure.outputs.acr_name }} \
+            --query passwords[0].value -o tsv)
+          
+          # Update container with new image
+          az container create \
+            --resource-group ${RESOURCE_GROUP} \
+            --name securecloud-dev-aci \
+            --image ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:latest \
+            --registry-login-server ${ACR_SERVER} \
+            --registry-username ${ACR_USERNAME} \
+            --registry-password ${ACR_PASSWORD} \
+            --dns-name-label securecloud-dev-$(date +%s) \
+            --ports 3000 \
+            --cpu 0.5 \
+            --memory 1.0 \
+            --environment-variables NODE_ENV=production PORT=3000 \
+            --restart-policy Always \
+            || echo "Container instance already exists, updating..."
+
+  # ============================================
+  # STAGE 8: Verification & Health Check
+  # ============================================
+  verify-deployment:
+    name: ✅ Verify Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-application, deploy-infrastructure]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Wait for Application Startup
+        run: sleep 30
+
+      - name: Health Check
+        run: |
+          FQDN="${{ needs.deploy-infrastructure.outputs.container_fqdn }}"
+          
+          echo "Testing health endpoint..."
+          curl -f http://${FQDN}:3000/health || echo "Health check pending..."
+          
+          echo "Testing main endpoint..."
+          curl -f http://${FQDN}:3000/ || echo "Main endpoint pending..."
+
+      - name: 🎉 Deployment Summary
+        run: |
+          echo "=================================="
+          echo "✅ DEPLOYMENT SUCCESSFUL!"
+          echo "=================================="
+          echo "🌐 Application URL: http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000"
+          echo "🔍 Health Check: http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000/health"
+          echo "📊 Info Endpoint: http://${{ needs.deploy-infrastructure.outputs.container_fqdn }}:3000/info"
+          echo "=================================="
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "=================================="

@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Secure Cloud Infrastructure | DevSecOps Platform</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #0f172a;
+            --dark-secondary: #1e293b;
+            --gray: #64748b;
+            --light: #f8fafc;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            opacity: 0.1;
+        }
+
+        .bg-animation span {
+            position: absolute;
+            display: block;
+            width: 20px;
+            height: 20px;
+            background: rgba(99, 102, 241, 0.5);
+            animation: float 25s infinite;
+            border-radius: 50%;
+        }
+
+        .bg-animation span:nth-child(1) { left: 10%; animation-delay: 0s; }
+        .bg-animation span:nth-child(2) { left: 20%; animation-delay: 2s; }
+        .bg-animation span:nth-child(3) { left: 30%; animation-delay: 4s; }
+        .bg-animation span:nth-child(4) { left: 40%; animation-delay: 6s; }
+        .bg-animation span:nth-child(5) { left: 50%; animation-delay: 8s; }
+        .bg-animation span:nth-child(6) { left: 60%; animation-delay: 10s; }
+        .bg-animation span:nth-child(7) { left: 70%; animation-delay: 12s; }
+        .bg-animation span:nth-child(8) { left: 80%; animation-delay: 14s; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1.5rem 2rem;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 2rem;
+            filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
+        }
+
+        .brand {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: #94a3b8;
+            text-decoration: none;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            color: var(--primary);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Container */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 8rem 2rem 4rem;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.2;
+        }
+
+        .hero .subtitle {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+
+        .tech-stack {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .tech-badge {
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            font-size: 0.875rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(99, 102, 241, 0.1);
+            border-radius: 1rem;
+            padding: 2rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+        }
+
+        .stat-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Features Grid */
+        .features-section {
+            margin-bottom: 3rem;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(99, 102, 241, 0.1);
+            border-radius: 1rem;
+            padding: 2rem;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .feature-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--primary), var(--secondary));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateX(5px);
+        }
+
+        .feature-card:hover::after {
+            opacity: 1;
+        }
+
+        .feature-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            color: var(--primary);
+        }
+
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .feature-desc {
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-list li {
+            padding: 0.5rem 0;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .feature-list li::before {
+            content: '✓';
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        /* API Terminal */
+        .api-terminal {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 1rem;
+            overflow: hidden;
+            margin-bottom: 3rem;
+        }
+
+        .terminal-header {
+            background: rgba(30, 41, 59, 0.8);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+        }
+
+        .terminal-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+        }
+
+        .terminal-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot.red { background: #ef4444; }
+        .dot.yellow { background: #f59e0b; }
+        .dot.green { background: #10b981; }
+
+        .terminal-body {
+            padding: 1.5rem;
+        }
+
+        .endpoint {
+            background: rgba(30, 41, 59, 0.5);
+            padding: 1rem 1.5rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            border-left: 3px solid var(--primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .endpoint:hover {
+            background: rgba(30, 41, 59, 0.8);
+            transform: translateX(5px);
+        }
+
+        .endpoint-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .endpoint-method {
+            display: inline-block;
+            background: var(--success);
+            color: #fff;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            width: fit-content;
+        }
+
+        .endpoint-path {
+            font-family: 'Courier New', monospace;
+            color: var(--primary);
+            font-size: 1.125rem;
+        }
+
+        .test-btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .test-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .response-container {
+            display: none;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .response-container.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .response-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            color: #94a3b8;
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        /* Security Metrics */
+        .security-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .metric {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(99, 102, 241, 0.1);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .metric-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+
+        .metric-label {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid rgba(99, 102, 241, 0.1);
+            color: #64748b;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer-link {
+            color: #64748b;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer-link:hover {
+            color: var(--primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .stats-grid,
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .endpoint {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+
+    <!-- Navigation -->
+    <nav>
+        <div class="logo-container">
+            <span class="logo">🔐</span>
+            <span class="brand">SecureCloud Platform</span>
+        </div>
+        <div class="nav-links">
+            <a href="#features" class="nav-link">Features</a>
+            <a href="#api" class="nav-link">API</a>
+            <a href="#security" class="nav-link">Security</a>
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span id="system-status">All Systems Operational</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1>Enterprise DevSecOps Platform</h1>
+            <p class="subtitle">
+                Production-grade secure cloud infrastructure with automated security scanning,
+                secrets management, and continuous deployment pipelines
+            </p>
+            <div class="tech-stack">
+                <span class="tech-badge"><i class="fab fa-node-js"></i> Node.js</span>
+                <span class="tech-badge"><i class="fab fa-docker"></i> Docker</span>
+                <span class="tech-badge"><i class="fab fa-microsoft"></i> Azure</span>
+                <span class="tech-badge"><i class="fas fa-code-branch"></i> Terraform</span>
+                <span class="tech-badge"><i class="fab fa-github"></i> GitHub Actions</span>
+            </div>
+        </section>
+
+        <!-- Live Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">⚡</div>
+                <div class="stat-value" id="uptime">--</div>
+                <div class="stat-label">Uptime (seconds)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔒</div>
+                <div class="stat-value">100%</div>
+                <div class="stat-label">Security Score</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-value" id="request-count">0</div>
+                <div class="stat-label">API Requests</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-value">0</div>
+                <div class="stat-label">Vulnerabilities</div>
+            </div>
+        </div>
+
+        <!-- Security Metrics -->
+        <section id="security" class="section">
+            <h2 class="section-title">🛡️ Security Posture</h2>
+            <div class="security-metrics">
+                <div class="metric">
+                    <div class="metric-icon">🔍</div>
+                    <div class="metric-value">✓</div>
+                    <div class="metric-label">IaC Scanning</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-icon">🐳</div>
+                    <div class="metric-value">✓</div>
+                    <div class="metric-label">Container Security</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-icon">🔑</div>
+                    <div class="metric-value">✓</div>
+                    <div class="metric-label">Key Vault Integration</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-icon">🌐</div>
+                    <div class="metric-value">✓</div>
+                    <div class="metric-label">Network Security</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section id="features" class="features-section">
+            <h2 class="section-title">🎯 Platform Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <i class="fas fa-code feature-icon"></i>
+                        <h3 class="feature-title">Infrastructure as Code</h3>
+                    </div>
+                    <p class="feature-desc">
+                        Fully automated infrastructure provisioning using Terraform with modular architecture
+                    </p>
+                    <ul class="feature-list">
+                        <li>Reusable Terraform modules</li>
+                        <li>Multi-environment support</li>
+                        <li>State management</li>
+                        <li>Automated testing</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <i class="fas fa-shield-alt feature-icon"></i>
+                        <h3 class="feature-title">Security Scanning</h3>
+                    </div>
+                    <p class="feature-desc">
+                        Multi-layer security scanning integrated into CI/CD pipeline
+                    </p>
+                    <ul class="feature-list">
+                        <li>Checkov for IaC scanning</li>
+                        <li>Trivy for containers</li>
+                        <li>Secret detection</li>
+                        <li>Dependency scanning</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <i class="fas fa-key feature-icon"></i>
+                        <h3 class="feature-title">Secrets Management</h3>
+                    </div>
+                    <p class="feature-desc">
+                        Azure Key Vault integration for secure secrets handling
+                    </p>
+                    <ul class="feature-list">
+                        <li>Zero hardcoded secrets</li>
+                        <li>Automatic rotation</li>
+                        <li>Access policies</li>
+                        <li>Audit logging</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <i class="fas fa-rocket feature-icon"></i>
+                        <h3 class="feature-title">CI/CD Pipeline</h3>
+                    </div>
+                    <p class="feature-desc">
+                        GitHub Actions workflow with security gates and automated deployments
+                    </p>
+                    <ul class="feature-list">
+                        <li>Automated testing</li>
+                        <li>Security gates</li>
+                        <li>Blue-green deployment</li>
+                        <li>Rollback capability</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <i class="fas fa-network-wired feature-icon"></i>
+                        <h3 class="feature-title">Network Security</h3>
+                    </div>
+                    <p class="feature-desc">
+                        Comprehensive network security with NSGs and private networking
+                    </p>
+                    <ul class="feature-list">
+                        <li>Network Security Groups</li>
+                        <li>Private endpoints</li>
+                        <li>DDoS protection</li>
+                        <li>Traffic monitoring</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <i class="fas fa-chart-line feature-icon"></i>
+                        <h3 class="feature-title">Monitoring & Logging</h3>
+                    </div>
+                    <p class="feature-desc">
+                        Comprehensive monitoring and structured logging for observability
+                    </p>
+                    <ul class="feature-list">
+                        <li>Winston logging</li>
+                        <li>Health endpoints</li>
+                        <li>Performance metrics</li>
+                        <li>Alert integration</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- API Terminal -->
+        <section id="api" class="section">
+            <h2 class="section-title">🔌 API Endpoints</h2>
+            <div class="api-terminal">
+                <div class="terminal-header">
+                    <div class="terminal-title">
+                        <i class="fas fa-terminal"></i>
+                        Interactive API Console
+                    </div>
+                    <div class="terminal-dots">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                    </div>
+                </div>
+                <div class="terminal-body">
+                    <div class="endpoint">
+                        <div class="endpoint-info">
+                            <span class="endpoint-method">GET</span>
+                            <code class="endpoint-path">/api</code>
+                        </div>
+                        <button class="test-btn" onclick="testEndpoint('/api')">
+                            <i class="fas fa-play"></i> Execute
+                        </button>
+                    </div>
+
+                    <div class="endpoint">
+                        <div class="endpoint-info">
+                            <span class="endpoint-method">GET</span>
+                            <code class="endpoint-path">/health</code>
+                        </div>
+                        <button class="test-btn" onclick="testEndpoint('/health')">
+                            <i class="fas fa-play"></i> Execute
+                        </button>
+                    </div>
+
+                    <div class="endpoint">
+                        <div class="endpoint-info">
+                            <span class="endpoint-method">GET</span>
+                            <code class="endpoint-path">/info</code>
+                        </div>
+                        <button class="test-btn" onclick="testEndpoint('/info')">
+                            <i class="fas fa-play"></i> Execute
+                        </button>
+                    </div>
+
+                    <div class="response-container" id="response">
+                        <div class="response-header">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Response</span>
+                        </div>
+                        <pre id="response-content">No response yet. Click "Execute" on any endpoint above.</pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-links">
+            <a href="https://github.com" class="footer-link"><i class="fab fa-github"></i> GitHub</a>
+            <a href="https://linkedin.com" class="footer-link"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            <a href="#" class="footer-link"><i class="fas fa-file-alt"></i> Documentation</a>
+        </div>
+        <p>Built with ❤️ using Node.js, Express, Docker, Terraform & Azure</p>
+        <p style="margin-top: 0.5rem; font-size: 0.875rem;">
+            DevSecOps Platform © 2025 | Enterprise-Grade Security Architecture
+        </p>
+    </footer>
+
+    <script>
+        let requestCount = 0;
+
+        // Update uptime every second
+        async function updateStats() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                document.getElementById('uptime').textContent = Math.floor(data.uptime);
+                document.getElementById('system-status').textContent = 'All Systems Operational';
+            } catch (error) {
+                document.getElementById('system-status').textContent = 'System Offline';
+            }
+        }
+
+        // Test endpoint
+        async function testEndpoint(endpoint) {
+            const responseDiv = document.getElementById('response');
+            const responseContent = document.getElementById('response-content');
+            
+            responseDiv.classList.add('show');
+            responseContent.innerHTML = '<div class="loading"></div> Executing request...';
+            
+            requestCount++;
+            document.getElementById('request-count').textContent = requestCount;
+            
+            try {
+                const startTime = performance.now();
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                const duration = (performance.now() - startTime).toFixed(2);
+                
+                responseContent.innerHTML = `// Status: ${response.status} ${response.statusText}
+// Response Time: ${duration}ms
+// Endpoint: ${endpoint}
+
+${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                responseContent.innerHTML = `// Error occurred
+{
+  "error": "${error.message}",
+  "endpoint": "${endpoint}"
+}`;
+            }
+        }
+
+        // Smooth scrolling
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    });
+</script>
