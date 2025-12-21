@@ -1,4 +1,4 @@
-# terraform/main.tf - UPDATED WITH SECURITY FIXES
+# terraform/main.tf - CORRECTED VERSION
 
 terraform {
   required_version = ">= 1.0"
@@ -66,21 +66,13 @@ resource "azurerm_container_registry" "acr" {
 # Key Vault - WITH SECURITY FIXES
 # ============================================
 resource "azurerm_key_vault" "kv" {
-  # FIXED: Shortened name to meet Azure 24-character limit
-  # Old: "${var.project_name}-${var.environment}-kv-${random_string.suffix.result}" (26+ chars)
-  # New: "kv-${var.environment}-${random_string.suffix.result}" (13-16 chars)
   name                        = "kv-${var.environment}-${random_string.suffix.result}"
   location                    = azurerm_resource_group.main.location
   resource_group_name         = azurerm_resource_group.main.name
   enabled_for_disk_encryption = true
   tenant_id                   = data.azurerm_client_config.current.tenant_id
   
-  # SECURITY FIX: Increased retention for production-like setup
   soft_delete_retention_days  = 90
-  
-  # SECURITY FIX: Purge protection
-  # NOTE: Set to false for easier cleanup in dev/demo environments
-  # In production, this MUST be true to prevent accidental deletion
   purge_protection_enabled    = false
   
   sku_name                    = "standard"
@@ -102,15 +94,9 @@ resource "azurerm_key_vault" "kv" {
     ]
   }
 
-  # SECURITY FIX: Restrict network access (allow only Azure services for demo)
-  # NOTE: For GitHub Actions CI/CD, we need to allow public network access
-  # In production, use private endpoints or add GitHub Actions IP ranges
   network_acls {
     default_action = "Allow"
     bypass         = "AzureServices"
-    
-    # For production, switch to "Deny" and add GitHub Actions IP ranges:
-    # ip_rules       = ["YOUR_IP_HERE", "GITHUB_ACTIONS_IP_RANGES"]
   }
 
   tags = merge(var.tags, {
@@ -126,10 +112,7 @@ resource "azurerm_key_vault_secret" "acr_username" {
   value        = azurerm_container_registry.acr.admin_username
   key_vault_id = azurerm_key_vault.kv.id
   
-  # SECURITY FIX: Add content type
   content_type = "text/plain"
-  
-  # SECURITY FIX: Set expiration (1 year from now)
   expiration_date = timeadd(timestamp(), "8760h")
   
   depends_on = [azurerm_key_vault.kv]
@@ -145,10 +128,7 @@ resource "azurerm_key_vault_secret" "acr_password" {
   value        = azurerm_container_registry.acr.admin_password
   key_vault_id = azurerm_key_vault.kv.id
   
-  # SECURITY FIX: Add content type
   content_type = "password"
-  
-  # SECURITY FIX: Set expiration (1 year from now)
   expiration_date = timeadd(timestamp(), "8760h")
   
   depends_on = [azurerm_key_vault.kv]
@@ -207,7 +187,7 @@ resource "azurerm_network_security_group" "app_nsg" {
 }
 
 # ============================================
-# Container Instance - WITH SECURITY FIXES
+# Container Instance - CORRECTED VERSION
 # ============================================
 resource "azurerm_container_group" "app" {
   name                = "${var.project_name}-${var.environment}-aci"
@@ -231,9 +211,9 @@ resource "azurerm_container_group" "app" {
 
   container {
     name   = "app"
-    # Using Microsoft's public registry to avoid Docker Hub rate limits
-    # This will be replaced by your actual application image during deployment
-    image  = "mcr.microsoft.com/azuredocs/aci-helloworld:latest"
+    # ✅ FIXED: Use your actual application image from ACR
+    # This will be updated by the CI/CD pipeline after the image is pushed
+    image  = "${azurerm_container_registry.acr.login_server}/securecloud-app:latest"
     cpu    = var.container_cpu
     memory = var.container_memory
 
@@ -242,7 +222,7 @@ resource "azurerm_container_group" "app" {
       protocol = "TCP"
     }
 
-    # SECURITY FIX: Use secure_environment_variables for sensitive data
+    # Environment variables for your Node.js app
     environment_variables = {
       NODE_ENV = var.environment
       PORT     = var.container_port
@@ -257,4 +237,12 @@ resource "azurerm_container_group" "app" {
   tags = merge(var.tags, {
     SecurityNote = "Uses managed identity and secure environment variables"
   })
+
+  # ✅ IMPORTANT: This tells Terraform to ignore image changes
+  # because the CI/CD pipeline will update the image
+  lifecycle {
+    ignore_changes = [
+      container[0].image
+    ]
+  }
 }
