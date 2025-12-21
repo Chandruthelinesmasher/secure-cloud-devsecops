@@ -1,4 +1,4 @@
-# terraform/main.tf - CORRECTED VERSION
+# terraform/main.tf - CORRECTED VERSION WITH BOOTSTRAP IMAGE
 
 terraform {
   required_version = ">= 1.0"
@@ -187,14 +187,14 @@ resource "azurerm_network_security_group" "app_nsg" {
 }
 
 # ============================================
-# Container Instance - CORRECTED VERSION
+# Container Instance - WITH BOOTSTRAP IMAGE
 # ============================================
 resource "azurerm_container_group" "app" {
   name                = "${var.project_name}-${var.environment}-aci"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   ip_address_type     = "Public"
-  dns_name_label      = "${var.project_name}-${var.environment}-${random_string.suffix.result}"
+  dns_name_label      = "${var.project_name}-${var.environment}-app"
   os_type             = "Linux"
   restart_policy      = "Always"
 
@@ -203,6 +203,7 @@ resource "azurerm_container_group" "app" {
     type = "SystemAssigned"
   }
 
+  # These credentials are provided for when we push the actual app image
   image_registry_credential {
     server   = azurerm_container_registry.acr.login_server
     username = azurerm_container_registry.acr.admin_username
@@ -211,9 +212,9 @@ resource "azurerm_container_group" "app" {
 
   container {
     name   = "app"
-    # ✅ FIXED: Use your actual application image from ACR
-    # This will be updated by the CI/CD pipeline after the image is pushed
-    image  = "${azurerm_container_registry.acr.login_server}/securecloud-app:latest"
+    # ✅ BOOTSTRAP IMAGE: Use a public Node.js image that exists
+    # This will be replaced by GitHub Actions with your actual app image
+    image  = "node:18-alpine"
     cpu    = var.container_cpu
     memory = var.container_memory
 
@@ -221,6 +222,9 @@ resource "azurerm_container_group" "app" {
       port     = var.container_port
       protocol = "TCP"
     }
+
+    # Simple command to keep the container running until replaced
+    commands = ["/bin/sh", "-c", "echo 'Waiting for application deployment...' && sleep infinity"]
 
     # Environment variables for your Node.js app
     environment_variables = {
@@ -236,13 +240,17 @@ resource "azurerm_container_group" "app" {
 
   tags = merge(var.tags, {
     SecurityNote = "Uses managed identity and secure environment variables"
+    BootstrapImage = "Initial deployment uses node:18-alpine, replaced by CI/CD"
   })
 
-  # ✅ IMPORTANT: This tells Terraform to ignore image changes
-  # because the CI/CD pipeline will update the image
+  # ✅ IMPORTANT: This tells Terraform to ignore image and command changes
+  # because the CI/CD pipeline will update them
   lifecycle {
     ignore_changes = [
-      container[0].image
+      container[0].image,
+      container[0].commands
     ]
   }
 }
+
+
