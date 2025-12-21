@@ -528,6 +528,7 @@ jobs:
           RESOURCE_GROUP="${{ needs.deploy-infrastructure.outputs.resource_group }}"
           CONTAINER_NAME="${{ steps.get_container_name.outputs.container_name }}"
           ACR_SERVER="${{ needs.deploy-infrastructure.outputs.acr_server }}"
+          KEY_VAULT_NAME="${{ needs.deploy-infrastructure.outputs.key_vault_name }}"
           
           echo "=================================="
           echo "🔄 Updating Container Instance"
@@ -535,6 +536,7 @@ jobs:
           echo "Resource Group: ${RESOURCE_GROUP}"
           echo "Container Name: ${CONTAINER_NAME}"
           echo "New Image: ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:latest"
+          echo "Key Vault: ${KEY_VAULT_NAME}"
           echo "=================================="
           
           # Get ACR credentials
@@ -554,7 +556,7 @@ jobs:
             --yes
           
           echo "Waiting for deletion to complete..."
-          sleep 10
+          sleep 15
           
           # Create new container instance with updated image
           echo "Creating new container instance with updated image..."
@@ -567,9 +569,11 @@ jobs:
             --registry-password ${ACR_PASSWORD} \
             --dns-name-label securecloud-dev-app \
             --ports 3000 \
+            --os-type Linux \
             --cpu 0.5 \
             --memory 1.0 \
             --environment-variables NODE_ENV=production PORT=3000 \
+            --secure-environment-variables KEY_VAULT_NAME=${KEY_VAULT_NAME} \
             --restart-policy Always
           
           echo "✅ Container instance updated successfully!"
