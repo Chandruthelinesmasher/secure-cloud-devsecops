@@ -231,7 +231,9 @@ resource "azurerm_container_group" "app" {
 
   container {
     name   = "app"
-    image  = "nginx:alpine"
+    # Using Microsoft's public registry to avoid Docker Hub rate limits
+    # This will be replaced by your actual application image during deployment
+    image  = "mcr.microsoft.com/azuredocs/aci-helloworld:latest"
     cpu    = var.container_cpu
     memory = var.container_memory
 
