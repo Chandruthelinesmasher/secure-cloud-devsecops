@@ -25,7 +25,7 @@ variable "allowed_ip_addresses" {
 variable "container_port" {
   description = "Container port"
   type        = number
-  default     = 3000
+  default     = 80
 }
 
 variable "container_cpu" {

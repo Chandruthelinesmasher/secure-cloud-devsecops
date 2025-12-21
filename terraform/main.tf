@@ -1,4 +1,4 @@
-# terraform/main.tf - CORRECTED VERSION WITH BOOTSTRAP IMAGE
+# terraform/main.tf - WITH PORT 80 FOR DIRECT ACCESS
 
 terraform {
   required_version = ">= 1.0"
@@ -154,7 +154,7 @@ resource "azurerm_network_security_group" "app_nsg" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = var.container_port
+    destination_port_range     = "80"
     source_address_prefixes    = var.allowed_ip_addresses
     destination_address_prefix = "*"
   }
@@ -187,7 +187,7 @@ resource "azurerm_network_security_group" "app_nsg" {
 }
 
 # ============================================
-# Container Instance - WITH BOOTSTRAP IMAGE
+# Container Instance - WITH PORT 80
 # ============================================
 resource "azurerm_container_group" "app" {
   name                = "${var.project_name}-${var.environment}-aci"
@@ -212,14 +212,14 @@ resource "azurerm_container_group" "app" {
     memory = var.container_memory
 
     ports {
-      port     = var.container_port
+      port     = 80
       protocol = "TCP"
     }
 
     # Environment variables for your Node.js app
     environment_variables = {
       NODE_ENV = var.environment
-      PORT     = var.container_port
+      PORT     = "80"
     }
     
     # Sensitive variables go here
@@ -230,7 +230,8 @@ resource "azurerm_container_group" "app" {
 
   tags = merge(var.tags, {
     SecurityNote = "Uses managed identity and secure environment variables"
-    BootstrapImage = "Initial deployment uses node:18-alpine, replaced by CI/CD"
+    BootstrapImage = "Initial deployment uses bootstrap image, replaced by CI/CD"
+    AccessNote = "Accessible on port 80 without port number in URL"
   })
 
   # ✅ IMPORTANT: This tells Terraform to ignore image changes

@@ -34,13 +34,13 @@ output "container_instance_ip" {
 }
 
 output "app_url" {
-  description = "Application URL"
-  value       = "http://${azurerm_container_group.app.fqdn}:${var.container_port}"
+  description = "Application URL - No port number needed!"
+  value       = "http://${azurerm_container_group.app.fqdn}"
 }
 
 output "health_check_url" {
   description = "Health check endpoint URL"
-  value       = "http://${azurerm_container_group.app.fqdn}:${var.container_port}/health"
+  value       = "http://${azurerm_container_group.app.fqdn}/health"
 }
 
 output "deployment_summary" {
@@ -50,6 +50,6 @@ output "deployment_summary" {
     location       = azurerm_resource_group.main.location
     acr_server     = azurerm_container_registry.acr.login_server
     key_vault      = azurerm_key_vault.kv.name
-    app_url        = "http://${azurerm_container_group.app.fqdn}:${var.container_port}"
+    app_url        = "http://${azurerm_container_group.app.fqdn}"
   }
 }
