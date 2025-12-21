@@ -248,9 +248,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
-          path: |
-            terraform/tfplan
-            terraform/plan-output.txt
+          path: terraform/tfplan
           retention-days: 5
 
       - name: Comment PR with Plan
@@ -329,16 +327,18 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: terraform-plan
-          path: terraform-artifacts/
+          path: .
 
       - name: Terraform Init
         run: |
           cd terraform
           terraform init
 
-      - name: Copy Terraform Plan
+      - name: Move Terraform Plan
         run: |
-          cp terraform-artifacts/tfplan terraform/
+          echo "Moving tfplan to terraform directory..."
+          mv tfplan terraform/
+          echo "Contents of terraform directory:"
           ls -la terraform/
 
       - name: Terraform Apply
