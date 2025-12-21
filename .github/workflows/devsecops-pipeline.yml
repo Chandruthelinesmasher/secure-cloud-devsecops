@@ -329,12 +329,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: terraform-plan
-          path: terraform/
+          path: terraform-artifacts/
 
       - name: Terraform Init
         run: |
           cd terraform
           terraform init
+
+      - name: Copy Terraform Plan
+        run: |
+          cp terraform-artifacts/tfplan terraform/
+          ls -la terraform/
 
       - name: Terraform Apply
         id: apply
