@@ -130,12 +130,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker Image with Port 80
+      - name: Build Docker Image with Port 8080
         run: |
           cd app
           docker build \
             --build-arg NODE_ENV=production \
-            --build-arg PORT=80 \
+            --build-arg PORT=8080 \
             -t ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} \
             -t ${{ env.DOCKER_IMAGE_NAME }}:latest \
             .
@@ -170,7 +170,7 @@ jobs:
           echo "✅ Container Security Scan Complete"
           echo "=================================="
           echo "Image: ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}"
-          echo "Port: 80 (configured)"
+          echo "Port: 8080 (Non-root compatible)"
           echo "Scanned for: CRITICAL and HIGH vulnerabilities"
           echo "=================================="
 
@@ -461,7 +461,7 @@ jobs:
       container_fqdn: ${{ steps.outputs.outputs.container_fqdn }}
 
   # ============================================
-  # STAGE 8: Deploy Application - PORT 80
+  # STAGE 8: Deploy Application - PORT 8080
   # ============================================
   deploy-application:
     name: 🚀 Deploy Application
@@ -528,7 +528,7 @@ jobs:
           echo "Found container: ${CONTAINER_NAME}"
           echo "container_name=${CONTAINER_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Update Container Instance with Port 80
+      - name: Update Container Instance with Port 8080
         run: |
           RESOURCE_GROUP="${{ needs.deploy-infrastructure.outputs.resource_group }}"
           CONTAINER_NAME="${{ steps.get_container_name.outputs.container_name }}"
@@ -541,7 +541,7 @@ jobs:
           echo "Resource Group: ${RESOURCE_GROUP}"
           echo "Container Name: ${CONTAINER_NAME}"
           echo "New Image: ${ACR_SERVER}/${{ env.DOCKER_IMAGE_NAME }}:latest"
-          echo "Port: 80 (Standard HTTP)"
+          echo "Port: 8080 (Non-root compatible)"
           echo "Key Vault: ${KEY_VAULT_NAME}"
           echo "=================================="
           
@@ -564,8 +564,8 @@ jobs:
           echo "Waiting for deletion to complete..."
           sleep 15
           
-          # Create new container instance with PORT 80
-          echo "Creating new container instance with PORT 80..."
+          # Create new container instance with PORT 8080
+          echo "Creating new container instance with PORT 8080..."
           az container create \
             --resource-group ${RESOURCE_GROUP} \
             --name ${CONTAINER_NAME} \
@@ -574,15 +574,15 @@ jobs:
             --registry-username ${ACR_USERNAME} \
             --registry-password ${ACR_PASSWORD} \
             --dns-name-label securecloud-dev-app \
-            --ports 80 \
+            --ports 8080 \
             --os-type Linux \
             --cpu 0.5 \
             --memory 1.0 \
-            --environment-variables NODE_ENV=production PORT=80 \
+            --environment-variables NODE_ENV=production PORT=8080 \
             --secure-environment-variables KEY_VAULT_NAME=${KEY_VAULT_NAME} \
             --restart-policy Always
           
-          echo "✅ Container instance updated successfully with PORT 80!"
+          echo "✅ Container instance updated successfully with PORT 8080!"
 
       - name: Application Deployment Summary
         run: |
@@ -591,8 +591,8 @@ jobs:
           echo "=================================="
           echo "📦 Image: ${{ needs.deploy-infrastructure.outputs.acr_server }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
           echo "🏷️  Tag: ${{ github.sha }}"
-          echo "🔄 Container recreated with PORT 80"
-          echo "🌐 No port number needed in URL!"
+          echo "🔄 Container recreated with PORT 8080"
+          echo "🌐 Port 8080 (Non-root user compatible)"
           echo "=================================="
 
   # ============================================
@@ -618,10 +618,10 @@ jobs:
           echo "🏥 Running Health Checks"
           echo "=================================="
           
-          # Try health endpoint (NO PORT NUMBER!)
+          # Try health endpoint with PORT 8080
           echo "Testing health endpoint..."
           for i in {1..5}; do
-            if curl -f -m 10 http://securecloud-dev-app.eastus.azurecontainer.io/health 2>/dev/null; then
+            if curl -f -m 10 http://securecloud-dev-app.eastus.azurecontainer.io:8080/health 2>/dev/null; then
               echo "✅ Health check passed!"
               break
             else
@@ -633,7 +633,7 @@ jobs:
           # Try info endpoint
           echo ""
           echo "Testing info endpoint..."
-          if curl -f -m 10 http://securecloud-dev-app.eastus.azurecontainer.io/info 2>/dev/null; then
+          if curl -f -m 10 http://securecloud-dev-app.eastus.azurecontainer.io:8080/info 2>/dev/null; then
             echo "✅ Info endpoint accessible!"
           else
             echo "⚠️  Info endpoint not ready yet..."
@@ -642,7 +642,7 @@ jobs:
           # Try main endpoint
           echo ""
           echo "Testing main endpoint..."
-          if curl -f -m 10 http://securecloud-dev-app.eastus.azurecontainer.io/ 2>/dev/null; then
+          if curl -f -m 10 http://securecloud-dev-app.eastus.azurecontainer.io:8080/ 2>/dev/null; then
             echo "✅ Main endpoint accessible!"
           else
             echo "⚠️  Main endpoint not ready yet..."
@@ -656,11 +656,11 @@ jobs:
           echo "✅ DEPLOYMENT SUCCESSFUL!"
           echo "=================================="
           echo ""
-          echo "🌐 Application URLs (No Port Number!):"
-          echo "   Main: http://securecloud-dev-app.eastus.azurecontainer.io"
-          echo "   Health: http://securecloud-dev-app.eastus.azurecontainer.io/health"
-          echo "   Info: http://securecloud-dev-app.eastus.azurecontainer.io/info"
-          echo "   API: http://securecloud-dev-app.eastus.azurecontainer.io/api"
+          echo "🌐 Application URLs:"
+          echo "   Main: http://securecloud-dev-app.eastus.azurecontainer.io:8080"
+          echo "   Health: http://securecloud-dev-app.eastus.azurecontainer.io:8080/health"
+          echo "   Info: http://securecloud-dev-app.eastus.azurecontainer.io:8080/info"
+          echo "   API: http://securecloud-dev-app.eastus.azurecontainer.io:8080/api"
           echo ""
           echo "=================================="
           echo "📋 Deployment Details"
@@ -669,14 +669,12 @@ jobs:
           echo "Branch: ${{ github.ref_name }}"
           echo "Actor: ${{ github.actor }}"
           echo "Workflow: ${{ github.run_number }}"
-          echo "Port: 80 (Standard HTTP)"
+          echo "Port: 8080 (Non-root compatible)"
           echo "=================================="
           echo ""
           echo "🎯 Next Steps:"
-          echo "1. Visit the application URLs above ✨"
+          echo "1. Visit the application URLs above"
           echo "2. Check Azure Portal for resources"
           echo "3. Review security scan results in artifacts"
           echo "4. Monitor application logs in Azure"
-          echo ""
-          echo "🎊 Clean URLs without port numbers!"
           echo "=================================="
