@@ -203,18 +203,11 @@ resource "azurerm_container_group" "app" {
     type = "SystemAssigned"
   }
 
-  # These credentials are provided for when we push the actual app image
-  image_registry_credential {
-    server   = azurerm_container_registry.acr.login_server
-    username = azurerm_container_registry.acr.admin_username
-    password = azurerm_container_registry.acr.admin_password
-  }
-
   container {
     name   = "app"
-    # ✅ BOOTSTRAP IMAGE: Use a public Node.js image that exists
+    # ✅ BOOTSTRAP IMAGE: Use Microsoft's public registry (no rate limits)
     # This will be replaced by GitHub Actions with your actual app image
-    image  = "node:18-alpine"
+    image  = "mcr.microsoft.com/azuredocs/aci-helloworld:latest"
     cpu    = var.container_cpu
     memory = var.container_memory
 
@@ -222,9 +215,6 @@ resource "azurerm_container_group" "app" {
       port     = var.container_port
       protocol = "TCP"
     }
-
-    # Simple command to keep the container running until replaced
-    commands = ["/bin/sh", "-c", "echo 'Waiting for application deployment...' && sleep infinity"]
 
     # Environment variables for your Node.js app
     environment_variables = {
@@ -243,14 +233,11 @@ resource "azurerm_container_group" "app" {
     BootstrapImage = "Initial deployment uses node:18-alpine, replaced by CI/CD"
   })
 
-  # ✅ IMPORTANT: This tells Terraform to ignore image and command changes
-  # because the CI/CD pipeline will update them
+  # ✅ IMPORTANT: This tells Terraform to ignore image changes
+  # because the CI/CD pipeline will update the image
   lifecycle {
     ignore_changes = [
-      container[0].image,
-      container[0].commands
+      container[0].image
     ]
   }
 }
-
-
