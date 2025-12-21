@@ -53,3 +53,4 @@ output "deployment_summary" {
     app_url        = "http://${azurerm_container_group.app.fqdn}"
   }
 }
+
