@@ -66,7 +66,10 @@ resource "azurerm_container_registry" "acr" {
 # Key Vault - WITH SECURITY FIXES
 # ============================================
 resource "azurerm_key_vault" "kv" {
-  name                        = "${var.project_name}-${var.environment}-kv-${random_string.suffix.result}"
+  # FIXED: Shortened name to meet Azure 24-character limit
+  # Old: "${var.project_name}-${var.environment}-kv-${random_string.suffix.result}" (26+ chars)
+  # New: "kv-${var.environment}-${random_string.suffix.result}" (13-16 chars)
+  name                        = "kv-${var.environment}-${random_string.suffix.result}"
   location                    = azurerm_resource_group.main.location
   resource_group_name         = azurerm_resource_group.main.name
   enabled_for_disk_encryption = true
