@@ -218,14 +218,52 @@ jobs:
           cd terraform
           terraform validate
 
+      - name: Check Terraform Files
+        run: |
+          echo "Checking terraform directory structure..."
+          ls -la terraform/
+          echo ""
+          echo "Checking for environments directory..."
+          if [ -d "terraform/environments" ]; then
+            echo "✅ environments directory exists"
+            ls -la terraform/environments/
+            if [ -d "terraform/environments/dev" ]; then
+              echo "✅ dev environment exists"
+              ls -la terraform/environments/dev/
+            else
+              echo "⚠️ dev environment directory not found"
+            fi
+          else
+            echo "⚠️ environments directory not found"
+            echo "Will run terraform plan without var-file"
+          fi
+
       - name: Terraform Plan
         id: plan
         run: |
           cd terraform
-          terraform plan \
-            -var-file=environments/dev/terraform.tfvars \
-            -out=tfplan \
-            -no-color | tee plan-output.txt
+          
+          # Check if tfvars file exists
+          if [ ! -f "environments/dev/terraform.tfvars" ]; then
+            echo "⚠️ Warning: terraform.tfvars not found, running plan without var-file"
+            terraform plan -out=tfplan -no-color 2>&1 | tee plan-output.txt
+          else
+            echo "✅ Using terraform.tfvars from environments/dev/"
+            terraform plan \
+              -var-file=environments/dev/terraform.tfvars \
+              -out=tfplan \
+              -no-color 2>&1 | tee plan-output.txt
+          fi
+          
+          # Check exit status
+          PLAN_EXIT_CODE=${PIPEFAIL[0]:-$?}
+          if [ $PLAN_EXIT_CODE -ne 0 ]; then
+            echo "❌ Terraform plan failed with exit code: $PLAN_EXIT_CODE"
+            cat plan-output.txt
+            exit $PLAN_EXIT_CODE
+          fi
+          
+          echo "✅ Terraform plan completed successfully"
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
