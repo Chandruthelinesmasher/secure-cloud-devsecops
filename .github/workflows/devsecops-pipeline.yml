@@ -233,6 +233,17 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_USE_CLI: true
 
+      - name: Verify Plan File Exists
+        run: |
+          echo "Checking if tfplan exists..."
+          ls -la terraform/
+          if [ -f "terraform/tfplan" ]; then
+            echo "✅ tfplan file created successfully"
+          else
+            echo "❌ tfplan file not found!"
+            exit 1
+          fi
+
       - name: Terraform Plan Summary
         run: |
           echo "=================================="
@@ -244,12 +255,24 @@ jobs:
           echo "Full plan saved as artifact"
           echo "=================================="
 
+      - name: Prepare Terraform Plan for Artifact
+        run: |
+          mkdir -p plan-artifact
+          cp terraform/tfplan plan-artifact/
+          ls -la plan-artifact/
+
       - name: Save Terraform Plan
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
-          path: terraform/tfplan
+          path: plan-artifact/tfplan
           retention-days: 5
+          if-no-files-found: error
+
+      - name: Verify Artifact Upload
+        run: |
+          echo "Artifact should be uploaded with name: terraform-plan"
+          echo "File uploaded: plan-artifact/tfplan"
 
       - name: Comment PR with Plan
         if: github.event_name == 'pull_request'
@@ -328,6 +351,18 @@ jobs:
         with:
           name: terraform-plan
           path: .
+        continue-on-error: false
+
+      - name: Verify Downloaded Artifact
+        run: |
+          echo "Current directory contents:"
+          ls -la
+          if [ -f "tfplan" ]; then
+            echo "✅ tfplan downloaded successfully"
+          else
+            echo "❌ tfplan not found after download!"
+            exit 1
+          fi
 
       - name: Terraform Init
         run: |
