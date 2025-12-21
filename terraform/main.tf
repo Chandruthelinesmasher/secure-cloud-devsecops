@@ -78,8 +78,10 @@ resource "azurerm_key_vault" "kv" {
   # SECURITY FIX: Increased retention for production-like setup
   soft_delete_retention_days  = 90
   
-  # SECURITY FIX: Enable purge protection (required for production)
-  purge_protection_enabled    = true
+  # SECURITY FIX: Purge protection
+  # NOTE: Set to false for easier cleanup in dev/demo environments
+  # In production, this MUST be true to prevent accidental deletion
+  purge_protection_enabled    = false
   
   sku_name                    = "standard"
 
@@ -101,12 +103,14 @@ resource "azurerm_key_vault" "kv" {
   }
 
   # SECURITY FIX: Restrict network access (allow only Azure services for demo)
+  # NOTE: For GitHub Actions CI/CD, we need to allow public network access
+  # In production, use private endpoints or add GitHub Actions IP ranges
   network_acls {
-    default_action = "Deny"
+    default_action = "Allow"
     bypass         = "AzureServices"
     
-    # Add your IP for local access (optional)
-    # ip_rules       = ["YOUR_IP_HERE"]
+    # For production, switch to "Deny" and add GitHub Actions IP ranges:
+    # ip_rules       = ["YOUR_IP_HERE", "GITHUB_ACTIONS_IP_RANGES"]
   }
 
   tags = merge(var.tags, {
